@@ -1,8 +1,11 @@
+const PROGRAM_START: usize = 0x8000;
+
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub status: u8,
     pub program_counter: u16,
+    memory: [u8; 0xFFFF],
 }
 
 impl CPU {
@@ -12,13 +15,40 @@ impl CPU {
             register_x: 0,
             status: 0,
             program_counter: 0,
+            memory: [0; 0xFFFF],
         }
     }
 
-    fn next_item(&mut self, program: &Vec<u8>) -> u8 {
-        let item = program[self.program_counter as usize];
-        self.program_counter += 1;
-        item
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.memory[addr as usize]
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.memory[addr as usize] = data;
+    }
+
+    fn mem_read_u16(&self, addr: u16) -> u16 {
+        let lo = self.memory[addr as usize];
+        let hi = self.memory[(addr + 1) as usize];
+
+        u16::from_le_bytes([lo, hi])
+    }
+
+    fn mem_write_u16(&mut self, addr: u16, data: u16) {
+        let [lo, hi] = data.to_le_bytes();
+
+        self.memory[addr as usize] = lo;
+        self.memory[(addr + 1) as usize] = hi;
+    }
+
+    fn load(&mut self, program: Vec<u8>) {
+        self.memory[PROGRAM_START..(PROGRAM_START + program.len())].copy_from_slice(&program[..]);
+        self.program_counter = PROGRAM_START as u16
+    }
+
+    pub fn load_and_run(&mut self, program: Vec<u8>) {
+        self.load(program);
+        self.run()
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -49,17 +79,17 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    pub fn interpret(&mut self, program: Vec<u8>) {
-        self.program_counter = 0;
+    pub fn run(&mut self) {
         loop {
-            let opscode = self.next_item(&program);
-
+            let opscode = self.mem_read(self.program_counter);
+            self.program_counter += 1;
             match opscode {
                 0x00 => {
                     return;
                 }
                 0xA9 => {
-                    let param = self.next_item(&program);
+                    let param = self.mem_read(self.program_counter);
+                    self.program_counter += 1;
                     self.lda(param);
                 }
                 0xAA => self.tax(),

@@ -1,4 +1,5 @@
 use crate::opcodes::OP_CODES_MAP;
+use bitflags::*;
 
 const DEFAULT_PROGRAM_START: usize = 0x8000;
 const PROGRAM_START_FROM: u16 = 0xFFFC;
@@ -47,11 +48,26 @@ pub trait MemOps {
     }
 }
 
+bitflags! {
+    /// Represents a set of flags.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct CpuFlags: u32 {
+        const C = 0b00000001;
+        const Z = 0b00000010;
+        const i = 0b00000100;
+        const d = 0b00001000;
+        const b = 0b00010000;
+        const _ = 0b00000000;
+        const V = 0b01000000;
+        const N = 0b10000000;
+    }
+}
+
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
-    pub status: u8,
+    pub status: CpuFlags,
     pub program_counter: u16,
     memory: [u8; 0xFFFF],
 }
@@ -72,24 +88,24 @@ impl CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: 0,
+            status: CpuFlags::empty(),
             program_counter: 0,
             memory: [0; 0xFFFF],
         }
     }
 
-    fn load(&mut self, program: Vec<u8>) {
+    pub fn load(&mut self, program: Vec<u8>) {
         self.memory[DEFAULT_PROGRAM_START..(DEFAULT_PROGRAM_START + program.len())]
             .copy_from_slice(&program[..]);
 
         self.mem_write_u16(PROGRAM_START_FROM, DEFAULT_PROGRAM_START as u16)
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
-        self.status = 0;
+        self.status = CpuFlags::empty();
         self.program_counter = self.mem_read_u16(PROGRAM_START_FROM);
     }
 
@@ -149,16 +165,21 @@ impl CPU {
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
-        self.status = if result == 0 {
-            self.status | 0b0000_0010
+        if result == 0 {
+            self.status.insert(CpuFlags::Z)
         } else {
-            self.status & 0b1111_1101
-        };
-        self.status = if result & 0b1000_0000 == 0 {
-            self.status & 0b0111_1111
+            self.status.remove(CpuFlags::Z)
+        }
+        if result & 0b1000_0000 == 0 {
+            self.status.remove(CpuFlags::N)
         } else {
-            self.status | 0b1000_0000
-        };
+            self.status.insert(CpuFlags::N)
+        }
+    }
+
+    fn set_register_a(&mut self, data: u8) {
+        self.register_a = data;
+        self.update_zero_and_negative_flags(data);
     }
 
     fn tax(&mut self) {
@@ -167,23 +188,45 @@ impl CPU {
     }
 
     fn inx(&mut self) {
-        self.register_x = self.register_x.wrapping_add(0b01);
+        self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn add_to_register_a_with_carry(&mut self, value: u8) {
+        let sum = (self.register_a as u16)
+            + (value as u16)
+            + match self.status.contains(CpuFlags::C) {
+                true => 1,
+                false => 0,
+            };
+
+        match sum > 0xff {
+            true => self.status.insert(CpuFlags::C),
+            false => self.status.remove(CpuFlags::C),
+        }
+
+        let sum = sum as u8;
+
+        match (value ^ sum) & (self.register_a ^ sum) & 0x80 == 0 {
+            true => self.status.remove(CpuFlags::V),
+            false => self.status.insert(CpuFlags::V),
+        }
+
+        self.set_register_a(sum);
     }
 
     fn adc(&mut self, addressing_mode: &AddressingMode) {
         let addr = self.get_operand_address(addressing_mode);
         let value = self.mem_read(addr);
 
-        let carry = (self.status >> 7) & 0b01;
+        self.add_to_register_a_with_carry(value);
     }
 
     fn lda(&mut self, addressing_mode: &AddressingMode) {
         let addr = self.get_operand_address(addressing_mode);
         let value = self.mem_read(addr);
 
-        self.register_a = value;
-        self.update_zero_and_negative_flags(self.register_a);
+        self.set_register_a(value);
     }
 
     fn sta(&mut self, addressing_mode: &AddressingMode) {

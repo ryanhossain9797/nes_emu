@@ -1,28 +1,28 @@
 #[cfg(test)]
 mod test {
-    use crate::cpu::{MemOps, CPU};
+    use crate::cpu::{CpuFlags, MemOps, CPU};
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let mut cpu: CPU = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
-        assert!(cpu.status & 0b0000_0010 == 0b00);
-        assert!(cpu.status & 0b1000_0000 == 0b00);
+        assert!(!cpu.status.contains(CpuFlags::Z));
+        assert!(!cpu.status.contains(CpuFlags::N));
     }
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
-        assert!(cpu.status & 0b0000_0010 == 0b10);
+        assert!(cpu.status.contains(CpuFlags::Z));
     }
 
     #[test]
     fn test_0xa9_lda_negative_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0xa8, 0x00]);
-        assert!(cpu.status & 0b1000_0000 == 0b1000_0000);
+        assert!(cpu.status.contains(CpuFlags::N));
     }
 
     #[test]
@@ -54,8 +54,10 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
+        cpu.load(vec![0xe8, 0xe8, 0x00]);
+        cpu.reset();
         cpu.register_x = 0xff;
-        cpu.load_and_run(vec![0xe8, 0xe8, 0x00]);
+        cpu.run();
 
         assert_eq!(cpu.register_x, 1)
     }

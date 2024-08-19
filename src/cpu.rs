@@ -20,6 +20,7 @@ pub enum AddressingMode {
 
 #[derive(Debug)]
 pub enum OpCodeType {
+    ADC,
     BRK,
     TAX,
     INX,
@@ -86,9 +87,9 @@ impl CPU {
 
     fn reset(&mut self) {
         self.register_a = 0;
-        self.register_a = 0;
+        self.register_x = 0;
+        self.register_y = 0;
         self.status = 0;
-
         self.program_counter = self.mem_read_u16(PROGRAM_START_FROM);
     }
 
@@ -160,6 +161,23 @@ impl CPU {
         };
     }
 
+    fn tax(&mut self) {
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn inx(&mut self) {
+        self.register_x = self.register_x.wrapping_add(0b01);
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn adc(&mut self, addressing_mode: &AddressingMode) {
+        let addr = self.get_operand_address(addressing_mode);
+        let value = self.mem_read(addr);
+
+        let carry = (self.status >> 7) & 0b01;
+    }
+
     fn lda(&mut self, addressing_mode: &AddressingMode) {
         let addr = self.get_operand_address(addressing_mode);
         let value = self.mem_read(addr);
@@ -173,22 +191,12 @@ impl CPU {
         self.mem_write(addr, self.register_a);
     }
 
-    fn tax(&mut self) {
-        self.register_x = self.register_a;
-        self.update_zero_and_negative_flags(self.register_x);
-    }
-
-    fn inx(&mut self) {
-        self.register_x = self.register_x.wrapping_add(0b01);
-        self.update_zero_and_negative_flags(self.register_x);
-    }
-
     pub fn run(&mut self) {
         loop {
             let op_code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
-            let program_counter_state = self.program_counter;
+            let program_counter_state: u16 = self.program_counter;
 
             let op_code = OP_CODES_MAP
                 .get(&op_code)
@@ -198,6 +206,7 @@ impl CPU {
                 OpCodeType::BRK => return,
                 OpCodeType::TAX => self.tax(),
                 OpCodeType::INX => self.inx(),
+                OpCodeType::ADC => self.adc(&op_code.addressing_mode),
                 OpCodeType::LDA => self.lda(&op_code.addressing_mode),
                 OpCodeType::STA => self.sta(&op_code.addressing_mode),
             }

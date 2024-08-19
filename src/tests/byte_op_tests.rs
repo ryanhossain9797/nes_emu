@@ -16,4 +16,17 @@ mod test {
 
         assert_eq!(le_bytes, [0x00, 0x80])
     }
+
+    #[test]
+    fn carry_flag() {
+        let status: u16 = 0b1010_0110;
+        let carry = (status >> 7) & 0b01;
+
+        assert_eq!(carry, 1);
+
+        let status: u16 = 0b0010_0110;
+        let carry = (status >> 7) & 0b01;
+
+        assert_eq!(carry, 0);
+    }
 }

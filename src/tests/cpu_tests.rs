@@ -61,4 +61,31 @@ mod test {
 
         assert_eq!(cpu.register_x, 1)
     }
+
+    #[test]
+    fn test_and() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x05, 0x29, 0xa9, 0x00]);
+        assert_eq!(cpu.register_a, 0x01);
+        assert!(!cpu.status.contains(CpuFlags::N));
+        assert!(!cpu.status.contains(CpuFlags::Z));
+    }
+
+    #[test]
+    fn test_and_negative_flag() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x05, 0x29, 0xa8, 0x00]);
+        assert_eq!(cpu.register_a, 0x00);
+        assert!(!cpu.status.contains(CpuFlags::N));
+        assert!(cpu.status.contains(CpuFlags::Z));
+    }
+
+    #[test]
+    fn test_and_zero_flag() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xa8, 0x29, 0xa0, 0x00]);
+        assert_eq!(cpu.register_a, 0xa0);
+        assert!(cpu.status.contains(CpuFlags::N));
+        assert!(!cpu.status.contains(CpuFlags::Z));
+    }
 }

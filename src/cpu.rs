@@ -26,6 +26,7 @@ pub enum OpCodeType {
     TAX,
     INX,
     LDA,
+    AND,
     STA,
 }
 
@@ -222,6 +223,15 @@ impl CPU {
         self.add_to_register_a_with_carry(value);
     }
 
+    fn and(&mut self, addressing_mode: &AddressingMode) {
+        let addr = self.get_operand_address(addressing_mode);
+        let value = self.mem_read(addr);
+
+        let and = self.register_a & value;
+
+        self.set_register_a(and);
+    }
+
     fn lda(&mut self, addressing_mode: &AddressingMode) {
         let addr = self.get_operand_address(addressing_mode);
         let value = self.mem_read(addr);
@@ -250,6 +260,7 @@ impl CPU {
                 OpCodeType::TAX => self.tax(),
                 OpCodeType::INX => self.inx(),
                 OpCodeType::ADC => self.adc(&op_code.addressing_mode),
+                OpCodeType::AND => self.and(&op_code.addressing_mode),
                 OpCodeType::LDA => self.lda(&op_code.addressing_mode),
                 OpCodeType::STA => self.sta(&op_code.addressing_mode),
             }

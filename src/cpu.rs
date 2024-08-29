@@ -7,7 +7,6 @@ const PROGRAM_START_FROM: u16 = 0xFFFC;
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
-    Accumulator,
     Immediate,
     ZeroPage,
     ZeroPageX,
@@ -29,6 +28,7 @@ pub enum OpCodeType {
     LDA,
     AND,
     ASL,
+    BCC,
     STA,
 }
 
@@ -126,7 +126,6 @@ impl CPU {
 
     fn get_operand_address(&mut self, addressing_mode: &AddressingMode) -> u16 {
         match addressing_mode {
-            AddressingMode::Accumulator => panic!("Accumulator Addressing Not Supported"),
             AddressingMode::Immediate => self.program_counter,
             AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
             AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
@@ -251,7 +250,7 @@ impl CPU {
 
     fn asl(&mut self, addressing_mode: &AddressingMode) {
         let value = match addressing_mode {
-            AddressingMode::Accumulator => &mut self.register_a,
+            AddressingMode::NoneAddressing => &mut self.register_a,
             _ => {
                 let addr = self.get_operand_address(addressing_mode);
                 self.mem_ref(addr)
@@ -270,6 +269,17 @@ impl CPU {
 
         self.update_zero_flag(self.register_a);
         self.update_negative_flag(shifted);
+    }
+
+    fn bcc(&mut self) {
+        let jmp = self.mem_read(self.program_counter) as i8;
+
+        let jmp_addr = self
+            .program_counter
+            .wrapping_add(1)
+            .wrapping_add(jmp as u16);
+
+        self.program_counter = jmp_addr;
     }
 
     fn lda(&mut self, addressing_mode: &AddressingMode) {
@@ -302,6 +312,7 @@ impl CPU {
                 OpCodeType::ADC => self.adc(&op_code.addressing_mode),
                 OpCodeType::AND => self.and(&op_code.addressing_mode),
                 OpCodeType::ASL => self.asl(&op_code.addressing_mode),
+                OpCodeType::BCC => self.bcc(),
                 OpCodeType::LDA => self.lda(&op_code.addressing_mode),
                 OpCodeType::STA => self.sta(&op_code.addressing_mode),
             }

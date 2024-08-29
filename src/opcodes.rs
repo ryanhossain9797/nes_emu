@@ -55,6 +55,12 @@ static OP_CODES: Lazy<Vec<OpCode>> = Lazy::new(|| {
         OpCode::new(0x39, &OpCodeType::AND, 3, 4, AddressingMode::AbsoluteY),
         OpCode::new(0x21, &OpCodeType::AND, 2, 6, AddressingMode::IndirectX),
         OpCode::new(0x31, &OpCodeType::AND, 2, 5, AddressingMode::IndirectY),
+        //ASL
+        OpCode::new(0x0a, &OpCodeType::ASL, 1, 2, AddressingMode::Accumulator),
+        OpCode::new(0x06, &OpCodeType::ASL, 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x16, &OpCodeType::ASL, 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x0e, &OpCodeType::ASL, 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x1e, &OpCodeType::ASL, 3, 4, AddressingMode::AbsoluteX),
         //LDA
         OpCode::new(0xa9, &OpCodeType::LDA, 2, 2, AddressingMode::Immediate),
         OpCode::new(0xa5, &OpCodeType::LDA, 2, 3, AddressingMode::ZeroPage),

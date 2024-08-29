@@ -72,6 +72,16 @@ mod test {
     }
 
     #[test]
+    fn test_asl() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xd1, 0x0a, 0x00]);
+        assert_eq!(cpu.register_a, 0xa2);
+        assert!(cpu.status.contains(CpuFlags::N));
+        assert!(!cpu.status.contains(CpuFlags::Z));
+        assert!(cpu.status.contains(CpuFlags::C));
+    }
+
+    #[test]
     fn test_and_negative_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x05, 0x29, 0xa8, 0x00]);

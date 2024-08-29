@@ -7,6 +7,7 @@ const PROGRAM_START_FROM: u16 = 0xFFFC;
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
+    Accumulator,
     Immediate,
     ZeroPage,
     ZeroPageX,
@@ -27,12 +28,15 @@ pub enum OpCodeType {
     INX,
     LDA,
     AND,
+    ASL,
     STA,
 }
 
 pub trait MemOps {
     fn mem_read(&self, addr: u16) -> u8;
     fn mem_write(&mut self, addr: u16, data: u8);
+
+    fn mem_ref(&mut self, addr: u16) -> &mut u8;
 
     fn mem_read_u16(&self, addr: u16) -> u16 {
         let lo = self.mem_read(addr);
@@ -81,6 +85,10 @@ impl MemOps for CPU {
     fn mem_write(&mut self, addr: u16, data: u8) {
         self.memory[addr as usize] = data;
     }
+
+    fn mem_ref(&mut self, addr: u16) -> &mut u8 {
+        &mut self.memory[addr as usize]
+    }
 }
 
 impl CPU {
@@ -118,6 +126,7 @@ impl CPU {
 
     fn get_operand_address(&mut self, addressing_mode: &AddressingMode) -> u16 {
         match addressing_mode {
+            AddressingMode::Accumulator => panic!("Accumulator Addressing Not Supported"),
             AddressingMode::Immediate => self.program_counter,
             AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
             AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
@@ -165,17 +174,25 @@ impl CPU {
         }
     }
 
-    fn update_zero_and_negative_flags(&mut self, result: u8) {
+    fn update_zero_flag(&mut self, result: u8) {
         if result == 0 {
             self.status.insert(CpuFlags::Z)
         } else {
             self.status.remove(CpuFlags::Z)
         }
+    }
+
+    fn update_negative_flag(&mut self, result: u8) {
         if result & 0b1000_0000 == 0 {
             self.status.remove(CpuFlags::N)
         } else {
             self.status.insert(CpuFlags::N)
         }
+    }
+
+    fn update_zero_and_negative_flags(&mut self, result: u8) {
+        self.update_zero_flag(result);
+        self.update_negative_flag(result);
     }
 
     fn set_register_a(&mut self, data: u8) {
@@ -232,6 +249,29 @@ impl CPU {
         self.set_register_a(and);
     }
 
+    fn asl(&mut self, addressing_mode: &AddressingMode) {
+        let value = match addressing_mode {
+            AddressingMode::Accumulator => &mut self.register_a,
+            _ => {
+                let addr = self.get_operand_address(addressing_mode);
+                self.mem_ref(addr)
+            }
+        };
+
+        let msb = *value & 0b1000_0000;
+        let shifted = *value << 0b01;
+        *value = shifted;
+
+        if msb > 0 {
+            self.status.insert(CpuFlags::C);
+        } else {
+            self.status.remove(CpuFlags::C);
+        }
+
+        self.update_zero_flag(self.register_a);
+        self.update_negative_flag(shifted);
+    }
+
     fn lda(&mut self, addressing_mode: &AddressingMode) {
         let addr = self.get_operand_address(addressing_mode);
         let value = self.mem_read(addr);
@@ -261,6 +301,7 @@ impl CPU {
                 OpCodeType::INX => self.inx(),
                 OpCodeType::ADC => self.adc(&op_code.addressing_mode),
                 OpCodeType::AND => self.and(&op_code.addressing_mode),
+                OpCodeType::ASL => self.asl(&op_code.addressing_mode),
                 OpCodeType::LDA => self.lda(&op_code.addressing_mode),
                 OpCodeType::STA => self.sta(&op_code.addressing_mode),
             }
